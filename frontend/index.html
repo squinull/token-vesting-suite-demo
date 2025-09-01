@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Token Vesting Demo – Claim</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial; background: #0b0b12; color:#eaeaf2; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+      .card { width: 520px; background:#14141f; border:1px solid #2a2a3b; border-radius:16px; padding:24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+      h1 { font-size: 20px; margin: 0 0 12px; }
+      .row { margin: 10px 0; display:flex; justify-content:space-between; }
+      button { padding:10px 14px; border-radius:10px; border:1px solid #6c6cff; background:#5b5bff; color:white; cursor:pointer; }
+      button.secondary { background:transparent; border-color:#444; }
+      input { width:100%; padding:10px; border-radius:10px; border:1px solid #333; background:#0f0f17; color:#eaeaf2; }
+      small { color:#bdbde6; }
+      .muted { color:#9aa0aa; font-size: 12px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.12.0/ethers.umd.min.js"></script>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Token Vesting – Claim</h1>
+      <div class="row"><small>Network:</small> <span id="network" class="muted">-</span></div>
+      <div class="row"><small>Connected:</small> <span id="account" class="mono">-</span></div>
+      <div class="row"><small>Vesting contract:</small> <span id="vestingAddr" class="mono">-</span></div>
+      <div class="row"><small>Token:</small> <span id="tokenAddr" class="mono">-</span></div>
+      <div class="row"><small>Releasable:</small> <span id="releasable" class="mono">0</span></div>
+      <div class="row" style="gap:8px;">
+        <button id="btnConnect">Connect</button>
+        <button id="btnRefresh" class="secondary">Refresh</button>
+        <button id="btnRelease">Release</button>
+      </div>
+      <p class="muted">Set addresses in the code or modify to read from URL params. This is a minimal demo UI for testnets.</p>
+    </div>
+
+    <script>
+      // Configure your addresses here before serving the page:
+      const VESTING_ADDRESS = "0xVESTING_ADDRESS_HERE";
+      const TOKEN_ADDRESS = "0xTOKEN_ADDRESS_HERE";
+
+      const ABI = [
+        "function token() view returns (address)",
+        "function releasable(address) view returns (uint256)",
+        "function release()",
+      ];
+
+      const erc20ABI = [
+        "function balanceOf(address) view returns (uint256)",
+        "function decimals() view returns (uint8)",
+        "function symbol() view returns (string)"
+      ];
+
+      const $ = (id) => document.getElementById(id);
+      $("vestingAddr").innerText = VESTING_ADDRESS;
+      $("tokenAddr").innerText = TOKEN_ADDRESS;
+
+      let provider, signer, vesting, token, account;
+
+      async function connect() {
+        if (!window.ethereum) { alert("Install MetaMask"); return; }
+        provider = new ethers.BrowserProvider(window.ethereum);
+        const net = await provider.getNetwork();
+        $("network").innerText = net.name + " (" + net.chainId + ")";
+        const accs = await provider.send("eth_requestAccounts", []);
+        account = accs[0];
+        $("account").innerText = account;
+        signer = await provider.getSigner();
+
+        vesting = new ethers.Contract(VESTING_ADDRESS, ABI, signer);
+        token = new ethers.Contract(TOKEN_ADDRESS, erc20ABI, signer);
+        await refresh();
+      }
+
+      async function refresh() {
+        if (!vesting || !account) return;
+        const rel = await vesting.releasable(account);
+        const decimals = await token.decimals();
+        $("releasable").innerText = ethers.formatUnits(rel, decimals);
+      }
+
+      async function release() {
+        if (!vesting) return;
+        const tx = await vesting.release();
+        await tx.wait();
+        await refresh();
+        alert("Released!");
+      }
+
+      $("btnConnect").onclick = connect;
+      $("btnRefresh").onclick = refresh;
+      $("btnRelease").onclick = release;
+    </script>
+  </body>
+</html>
